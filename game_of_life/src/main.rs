@@ -5,6 +5,12 @@ use std::time::Duration;
 const WIDTH: usize = 50;
 const HEIGHT: usize = 20;
 
+// Different View Modes:
+// 0: Monochrome characters ('O' for live, ' ' for dead)
+// 1: Different ASCII characters ('@' for live, '.' for dead)
+// 2: Use ANSI colors with characters
+const VIEW_MODE: usize = 2;
+
 fn main() {
     let mut board = initialize_board(WIDTH, HEIGHT);
     
@@ -33,8 +39,30 @@ fn print_board(board: &[bool]) {
 
     for row in 0..HEIGHT {
         for col in 0..WIDTH {
-            let cell = board[row * WIDTH + col];
-            print!("{}", if cell { "O" } else { " " });
+            let cell_alive = board[row * WIDTH + col];
+            match VIEW_MODE {
+                0 => {
+                    // Simple monochrome view
+                    print!("{}", if cell_alive { "O" } else { " " });
+                }
+                1 => {
+                    // Different ASCII characters
+                    print!("{}", if cell_alive { "@" } else { "." });
+                }
+                2 => {
+                    // ANSI colors: green for alive, dark gray for dead
+                    // 32m = green; 90m = bright black (dark gray)
+                    if cell_alive {
+                        print!("\x1b[32mO\x1b[0m");
+                    } else {
+                        print!("\x1b[90m.\x1b[0m");
+                    }
+                }
+                _ => {
+                    // Default to the original mode if out of range
+                    print!("{}", if cell_alive { "O" } else { " " });
+                }
+            }
         }
         println!();
     }
