@@ -26,9 +26,39 @@ fn initialize_board(width: usize, height: usize) -> Vec<bool> {
     // Example: a simple blinker pattern in the center
     let mid_row = height / 2;
     let mid_col = width / 2;
-    board[mid_row * width + mid_col - 1] = true;
-    board[mid_row * width + mid_col] = true;
-    board[mid_row * width + mid_col + 1] = true;
+    board[mid_row * width + mid_col - 40] = true;
+    board[mid_row * width + mid_col - 39] = true;
+    board[mid_row * width + mid_col - 38] = true;
+    board[mid_row * width + mid_col - 37] = true;
+    board[mid_row * width + mid_col - 36] = true;
+    board[mid_row * width + mid_col - 35] = true;
+    board[mid_row * width + mid_col - 34] = true;
+    board[mid_row * width + mid_col - 33] = true;
+
+    board[mid_row * width + mid_col - 31] = true;
+    board[mid_row * width + mid_col - 30] = true;
+    board[mid_row * width + mid_col - 29] = true;
+    board[mid_row * width + mid_col - 28] = true;
+    board[mid_row * width + mid_col - 27] = true;
+
+    board[mid_row * width + mid_col - 24] = true;
+    board[mid_row * width + mid_col - 23] = true;
+    board[mid_row * width + mid_col - 22] = true;
+    
+    board[mid_row * width + mid_col + 28] = true;
+    board[mid_row * width + mid_col + 29] = true;
+    board[mid_row * width + mid_col + 30] = true;
+    board[mid_row * width + mid_col + 31] = true;
+    board[mid_row * width + mid_col + 32] = true;
+    board[mid_row * width + mid_col + 33] = true;
+    board[mid_row * width + mid_col + 34] = true;
+
+    board[mid_row * width + mid_col + 35] = true;
+    board[mid_row * width + mid_col + 36] = true;
+    board[mid_row * width + mid_col + 37] = true;
+    board[mid_row * width + mid_col + 38] = true;
+    board[mid_row * width + mid_col + 39] = true;
+    board[mid_row * width + mid_col + 40] = true;
     board
 }
 
