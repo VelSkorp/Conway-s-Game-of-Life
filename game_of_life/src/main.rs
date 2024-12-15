@@ -13,10 +13,13 @@ const VIEW_MODE: usize = 2;
 
 fn main() {
     let mut board = initialize_board(WIDTH, HEIGHT);
-    
+    let mut generation = 0;
+
     loop {
+        print_generation(generation);
         print_board(&board);
         board = next_generation(&board);
+        generation += 1;
         sleep(Duration::from_millis(100));
     }
 }
@@ -32,8 +35,6 @@ fn initialize_board(width: usize, height: usize) -> Vec<bool> {
 
 /// Prints the current state of the board to the terminal.
 fn print_board(board: &[bool]) {
-    clear_screen();
-
     for row in 0..HEIGHT {
         for col in 0..WIDTH {
             let cell_alive = board[idx(row, col)];
@@ -134,4 +135,9 @@ fn clear_screen() {
 #[inline]
 fn idx(row: usize, col: usize) -> usize {
     row * WIDTH + col
+}
+
+fn print_generation(gen: usize) {
+    clear_screen();
+    println!("Generation: {}", gen);
 }
