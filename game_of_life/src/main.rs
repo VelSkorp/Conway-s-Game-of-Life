@@ -5,6 +5,10 @@ use std::time::Duration;
 const WIDTH: usize = 50;
 const HEIGHT: usize = 20;
 
+// Conway's Game of Life: B3/S23 (Birth on 3 neighbors, survive on 2 or 3)
+const BIRTH: [usize; 1] = [3];
+const SURVIVE: [usize; 2] = [2, 3];
+
 // Different View Modes:
 // 0: Monochrome characters ('O' for live, ' ' for dead)
 // 1: Different ASCII characters ('@' for live, '.' for dead)
@@ -53,11 +57,13 @@ fn next_generation(board: &[bool]) -> Vec<bool> {
             let neighbors = live_neighbor_count(board, row, col);
             let current_cell = board[idx(row, col)];
 
-            new_board[idx(row, col)] = match (current_cell, neighbors) {
-                (true, 2) | (true, 3) => true,
-                (false, 3) => true,
-                _ => false,
+            let should_live = if current_cell {
+                SURVIVE.contains(&neighbors)
+            } else {
+                BIRTH.contains(&neighbors)
             };
+
+            new_board[idx(row, col)] = should_live;
         }
     }
 
