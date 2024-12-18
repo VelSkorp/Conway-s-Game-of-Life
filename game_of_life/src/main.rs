@@ -1,5 +1,5 @@
-use std::thread::sleep;
-use std::time::Duration;
+use std::env;
+use rand::Rng;
 
 // Dimensions of the board
 const WIDTH: usize = 50;
@@ -16,7 +16,33 @@ const SURVIVE: [usize; 2] = [2, 3];
 const VIEW_MODE: usize = 2;
 
 fn main() {
-    let mut board = initialize_board(WIDTH, HEIGHT);
+    // Default pattern
+    let mut pattern = "line".to_string();
+
+    // Parse command-line arguments for pattern
+    // Example usage:
+    // cargo run -- --pattern glider
+    let args: Vec<String> = env::args().collect();
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--pattern" if i + 1 < args.len() => {
+                pattern = args[i + 1].clone();
+                i += 2;
+            }
+            _ => {
+                // Ignore unknown arguments
+                i += 1;
+            }
+        }
+    }
+
+    let mut board = match pattern.as_str() {
+        "glider" => initialize_glider(WIDTH, HEIGHT),
+        "random" => initialize_random(WIDTH, HEIGHT),
+        _ => initialize_line(WIDTH, HEIGHT),
+    };
+
     let mut generation = 0;
 
     loop {
@@ -24,16 +50,39 @@ fn main() {
         print_board(&board);
         board = next_generation(&board);
         generation += 1;
-        sleep(Duration::from_millis(100));
+        // No delay here; the loop runs continuously
     }
 }
 
-/// Initializes the board with a vertical line of live cells in the center column.
-fn initialize_board(width: usize, height: usize) -> Vec<bool> {
+/// Initialize the board with a vertical line of live cells in the center column.
+fn initialize_line(width: usize, height: usize) -> Vec<bool> {
     let mut board = vec![false; width * height];
     let mid_col = width / 2;
-
     set_column(mid_col, vec![6, 7, 8, 9, 10, 11, 12, 13], &mut board);
+    board
+}
+
+/// Initialize the board with a glider pattern in the top-left corner.
+fn initialize_glider(width: usize, height: usize) -> Vec<bool> {
+    let mut board = vec![false; width * height];
+    if width > 2 && height > 2 {
+        // Glider cells
+        board[idx(0, 1)] = true;
+        board[idx(1, 2)] = true;
+        board[idx(2, 0)] = true;
+        board[idx(2, 1)] = true;
+        board[idx(2, 2)] = true;
+    }
+    board
+}
+
+/// Initialize the board with random live and dead cells.
+fn initialize_random(width: usize, height: usize) -> Vec<bool> {
+    let mut board = vec![false; width * height];
+    let mut rng = rand::thread_rng();
+    for cell in &mut board {
+        *cell = rng.gen_bool(0.2);
+    }
     board
 }
 
