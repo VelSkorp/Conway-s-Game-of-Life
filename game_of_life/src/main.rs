@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Write};
 use std::env;
 use rand::Rng;
 
@@ -18,16 +20,19 @@ const VIEW_MODE: usize = 2;
 fn main() {
     // Default pattern
     let mut pattern = "line".to_string();
+    let mut load_file = None;
 
-    // Parse command-line arguments for pattern
-    // Example usage:
-    // cargo run -- --pattern glider
+    // Parse command-line arguments
     let args: Vec<String> = env::args().collect();
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
             "--pattern" if i + 1 < args.len() => {
                 pattern = args[i + 1].clone();
+                i += 2;
+            }
+            "--load" if i + 1 < args.len() => {
+                load_file = Some(args[i + 1].clone());
                 i += 2;
             }
             _ => {
@@ -37,10 +42,17 @@ fn main() {
         }
     }
 
-    let mut board = match pattern.as_str() {
-        "glider" => initialize_glider(WIDTH, HEIGHT),
-        "random" => initialize_random(WIDTH, HEIGHT),
-        _ => initialize_line(WIDTH, HEIGHT),
+    let mut board = if let Some(filename) = load_file {
+        load_board(&filename).unwrap_or_else(|e| {
+            eprintln!("Failed to load board: {}", e);
+            initialize_line(WIDTH, HEIGHT)
+        })
+    } else {
+        match pattern.as_str() {
+            "glider" => initialize_glider(WIDTH, HEIGHT),
+            "random" => initialize_random(WIDTH, HEIGHT),
+            _ => initialize_line(WIDTH, HEIGHT),
+        }
     };
 
     let mut generation = 0;
@@ -48,9 +60,15 @@ fn main() {
     loop {
         print_generation(generation);
         print_board(&board);
+
+        if generation % 10 == 0 {
+            save_board(&board, "game_of_life_state.txt").unwrap_or_else(|e| {
+                eprintln!("Failed to save board: {}", e);
+            });
+        }
+
         board = next_generation(&board);
         generation += 1;
-        // No delay here; the loop runs continuously
     }
 }
 
@@ -195,4 +213,37 @@ fn idx(row: usize, col: usize) -> usize {
 fn print_generation(gen: usize) {
     clear_screen();
     println!("Generation: {}", gen);
+}
+
+/// Save the board state to a file.
+fn save_board(board: &[bool], filename: &str) -> io::Result<()> {
+    let mut file = File::create(filename)?;
+    for row in 0..HEIGHT {
+        for col in 0..WIDTH {
+            let cell = if board[idx(row, col)] { '1' } else { '0' };
+            write!(file, "{}", cell)?;
+        }
+        writeln!(file)?;
+    }
+    Ok(())
+}
+
+/// Load the board state from a file.
+fn load_board(filename: &str) -> io::Result<Vec<bool>> {
+    let file = File::open(filename)?;
+    let reader = BufReader::new(file);
+    let mut board = vec![false; WIDTH * HEIGHT];
+    for (row, line) in reader.lines().enumerate() {
+        if row >= HEIGHT {
+            break;
+        }
+        let line = line?;
+        for (col, char) in line.chars().enumerate() {
+            if col >= WIDTH {
+                break;
+            }
+            board[idx(row, col)] = char == '1';
+        }
+    }
+    Ok(board)
 }
