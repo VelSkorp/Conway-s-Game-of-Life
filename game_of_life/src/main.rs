@@ -1,6 +1,9 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::env;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 use rand::Rng;
 
 // Dimensions of the board
@@ -57,7 +60,43 @@ fn main() {
 
     let mut generation = 0;
 
+    // Channel to listen for pause/resume commands
+    let (tx, rx) = mpsc::channel();
+
+    // Spawn a thread to listen for user input
+    thread::spawn(move || {
+        let stdin = io::stdin();
+        let mut input = String::new();
+        loop {
+            input.clear();
+            if let Ok(_) = stdin.read_line(&mut input) {
+                let command = input.trim();
+                if command == "pause" {
+                    tx.send("pause").unwrap();
+                } else if command == "resume" {
+                    tx.send("resume").unwrap();
+                }
+            }
+        }
+    });
+
+    let mut paused = false;
+
     loop {
+        if let Ok(command) = rx.try_recv() {
+            if command == "pause" {
+                paused = true;
+            } else if command == "resume" {
+                paused = false;
+            }
+        }
+
+        if paused {
+            println!("Simulation paused. Type 'resume' to continue.");
+            thread::sleep(Duration::from_millis(500));
+            continue;
+        }
+
         print_generation(generation);
         print_board(&board);
 
@@ -69,6 +108,8 @@ fn main() {
 
         board = next_generation(&board);
         generation += 1;
+
+        thread::sleep(Duration::from_millis(200)); // Delay for readability
     }
 }
 
