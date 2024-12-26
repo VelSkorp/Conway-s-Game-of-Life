@@ -21,11 +21,18 @@ const SURVIVE: [usize; 2] = [2, 3];
 const VIEW_MODE: usize = 2;
 
 fn main() {
-    // Default pattern
+    let (pattern, load_file) = parse_arguments();
+    let mut board = initialize_board(pattern, load_file);
+
+    let rx = setup_command_listener(); // Only the receiver is returned
+    run_simulation(&mut board, rx);
+}
+
+/// Parse command-line arguments and return the pattern and optional load file.
+fn parse_arguments() -> (String, Option<String>) {
     let mut pattern = "line".to_string();
     let mut load_file = None;
 
-    // Parse command-line arguments
     let args: Vec<String> = env::args().collect();
     let mut i = 1;
     while i < args.len() {
@@ -39,13 +46,16 @@ fn main() {
                 i += 2;
             }
             _ => {
-                // Ignore unknown arguments
-                i += 1;
+                i += 1; // Ignore unknown arguments
             }
         }
     }
+    (pattern, load_file)
+}
 
-    let mut board = if let Some(filename) = load_file {
+/// Initialize the board based on the given pattern or loaded file.
+fn initialize_board(pattern: String, load_file: Option<String>) -> Vec<bool> {
+    if let Some(filename) = load_file {
         load_board(&filename).unwrap_or_else(|e| {
             eprintln!("Failed to load board: {}", e);
             initialize_line(WIDTH, HEIGHT)
@@ -56,14 +66,13 @@ fn main() {
             "random" => initialize_random(WIDTH, HEIGHT),
             _ => initialize_line(WIDTH, HEIGHT),
         }
-    };
+    }
+}
 
-    let mut generation = 0;
-
-    // Channel to listen for pause/resume commands
+/// Set up a channel to listen for user commands in a separate thread.
+fn setup_command_listener() -> mpsc::Receiver<&'static str> {
     let (tx, rx) = mpsc::channel();
 
-    // Spawn a thread to listen for user input
     thread::spawn(move || {
         let stdin = io::stdin();
         let mut input = String::new();
@@ -72,22 +81,28 @@ fn main() {
             if let Ok(_) = stdin.read_line(&mut input) {
                 let command = input.trim();
                 if command == "pause" {
-                    tx.send("pause").unwrap();
+                    let _ = tx.send("pause"); // Safely ignore send errors
                 } else if command == "resume" {
-                    tx.send("resume").unwrap();
+                    let _ = tx.send("resume"); // Safely ignore send errors
                 }
             }
         }
     });
 
+    rx
+}
+
+/// Run the simulation loop, handling pause and resume commands.
+fn run_simulation(board: &mut Vec<bool>, rx: mpsc::Receiver<&'static str>) {
+    let mut generation = 0;
     let mut paused = false;
 
     loop {
         if let Ok(command) = rx.try_recv() {
-            if command == "pause" {
-                paused = true;
-            } else if command == "resume" {
-                paused = false;
+            match command {
+                "pause" => paused = true,
+                "resume" => paused = false,
+                _ => (),
             }
         }
 
@@ -106,7 +121,7 @@ fn main() {
             });
         }
 
-        board = next_generation(&board);
+        *board = next_generation(board);
         generation += 1;
 
         thread::sleep(Duration::from_millis(200)); // Delay for readability
