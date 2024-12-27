@@ -1,14 +1,17 @@
+use ctrlc;
+use rand::Rng;
+use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
-use std::env;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use rand::Rng;
 
 // Dimensions of the board
-const WIDTH: usize = 50;
-const HEIGHT: usize = 20;
+const WIDTH: usize = 80;
+const HEIGHT: usize = 30;
 
 // Conway's Game of Life: B3/S23 (Birth on 3 neighbors, survive on 2 or 3)
 const BIRTH: [usize; 1] = [3];
@@ -21,17 +24,36 @@ const SURVIVE: [usize; 2] = [2, 3];
 const VIEW_MODE: usize = 2;
 
 fn main() {
-    let (pattern, load_file) = parse_arguments();
-    let mut board = initialize_board(pattern, load_file);
-
+    let (pattern, load_file, history) = parse_arguments();
+    let board = initialize_board(pattern, load_file);
     let rx = setup_command_listener(); // Only the receiver is returned
-    run_simulation(&mut board, rx);
+    let running = Arc::new(AtomicBool::new(true));
+
+    // Set Ctrl + C signal handler
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    if !history {
+        enable_alternate_buffer();
+    }
+
+    let last_board = run_simulation(board, rx, running);
+
+    if !history {
+        disable_alternate_buffer();
+        println!("Final Generation:");
+        print_board(&last_board);
+    }
 }
 
 /// Parse command-line arguments and return the pattern and optional load file.
-fn parse_arguments() -> (String, Option<String>) {
+fn parse_arguments() -> (String, Option<String>, bool) {
     let mut pattern = "line".to_string();
     let mut load_file = None;
+    let mut history = false;
 
     let args: Vec<String> = env::args().collect();
     let mut i = 1;
@@ -45,12 +67,16 @@ fn parse_arguments() -> (String, Option<String>) {
                 load_file = Some(args[i + 1].clone());
                 i += 2;
             }
+            "--history" => {
+                history = true;
+                i += 1;
+            }
             _ => {
                 i += 1; // Ignore unknown arguments
             }
         }
     }
-    (pattern, load_file)
+    (pattern, load_file, history)
 }
 
 /// Initialize the board based on the given pattern or loaded file.
@@ -93,11 +119,16 @@ fn setup_command_listener() -> mpsc::Receiver<&'static str> {
 }
 
 /// Run the simulation loop, handling pause and resume commands.
-fn run_simulation(board: &mut Vec<bool>, rx: mpsc::Receiver<&'static str>) {
+fn run_simulation(
+    mut board: Vec<bool>,
+    rx: mpsc::Receiver<&'static str>,
+    running: Arc<AtomicBool>,
+) -> Vec<bool> {
+    let mut next_board = board.clone();
     let mut generation = 0;
     let mut paused = false;
 
-    loop {
+    while running.load(Ordering::SeqCst) {
         if let Ok(command) = rx.try_recv() {
             match command {
                 "pause" => paused = true,
@@ -108,7 +139,7 @@ fn run_simulation(board: &mut Vec<bool>, rx: mpsc::Receiver<&'static str>) {
 
         if paused {
             println!("Simulation paused. Type 'resume' to continue.");
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_secs(120));
             continue;
         }
 
@@ -121,11 +152,17 @@ fn run_simulation(board: &mut Vec<bool>, rx: mpsc::Receiver<&'static str>) {
             });
         }
 
-        *board = next_generation(board);
+        next_generation(&mut board, &mut next_board);
+
+        // Swap the buffers
+        std::mem::swap(&mut board, &mut next_board);
+
         generation += 1;
 
-        thread::sleep(Duration::from_millis(200)); // Delay for readability
+        thread::sleep(Duration::from_millis(100)); // Delay for readability
     }
+
+    board
 }
 
 /// Initialize the board with a vertical line of live cells in the center column.
@@ -172,13 +209,11 @@ fn print_board(board: &[bool]) {
 }
 
 /// Computes the next generation of the board using Conway's Game of Life rules.
-fn next_generation(board: &[bool]) -> Vec<bool> {
-    let mut new_board = vec![false; WIDTH * HEIGHT];
-
+fn next_generation(current: &Vec<bool>, next: &mut Vec<bool>) {
     for row in 0..HEIGHT {
         for col in 0..WIDTH {
-            let neighbors = live_neighbor_count(board, row, col);
-            let current_cell = board[idx(row, col)];
+            let neighbors = live_neighbor_count(current, row, col);
+            let current_cell = current[idx(row, col)];
 
             let should_live = if current_cell {
                 SURVIVE.contains(&neighbors)
@@ -186,11 +221,9 @@ fn next_generation(board: &[bool]) -> Vec<bool> {
                 BIRTH.contains(&neighbors)
             };
 
-            new_board[idx(row, col)] = should_live;
+            next[idx(row, col)] = should_live;
         }
     }
-
-    new_board
 }
 
 /// Counts the number of live neighbors around a specific cell, wrapping around edges.
@@ -234,11 +267,19 @@ fn cell_representation(cell_alive: bool) -> String {
     match VIEW_MODE {
         0 => {
             // Simple monochrome view
-            if cell_alive { "O".to_string() } else { " ".to_string() }
+            if cell_alive {
+                "O".to_string()
+            } else {
+                " ".to_string()
+            }
         }
         1 => {
             // Different ASCII characters
-            if cell_alive { "@".to_string() } else { ".".to_string() }
+            if cell_alive {
+                "@".to_string()
+            } else {
+                ".".to_string()
+            }
         }
         2 => {
             // ANSI colors: green for alive ('O'), dark gray for dead ('.')
@@ -250,9 +291,23 @@ fn cell_representation(cell_alive: bool) -> String {
         }
         _ => {
             // Default to monochrome if out of range
-            if cell_alive { "O".to_string() } else { " ".to_string() }
+            if cell_alive {
+                "O".to_string()
+            } else {
+                " ".to_string()
+            }
         }
     }
+}
+
+fn enable_alternate_buffer() {
+    print!("\x1b[?1049h");
+    io::stdout().flush().unwrap();
+}
+
+fn disable_alternate_buffer() {
+    print!("\x1b[?1049l");
+    io::stdout().flush().unwrap();
 }
 
 /// Clears the terminal screen and moves the cursor to the top-left corner.
