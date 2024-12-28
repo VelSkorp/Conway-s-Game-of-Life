@@ -96,7 +96,7 @@ fn initialize_board(pattern: String, load_file: Option<String>) -> Vec<bool> {
 }
 
 /// Set up a channel to listen for user commands in a separate thread.
-fn setup_command_listener() -> mpsc::Receiver<&'static str> {
+fn setup_command_listener() -> mpsc::Receiver<String> {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
@@ -105,11 +105,12 @@ fn setup_command_listener() -> mpsc::Receiver<&'static str> {
         loop {
             input.clear();
             if let Ok(_) = stdin.read_line(&mut input) {
-                let command = input.trim();
-                if command == "pause" {
-                    let _ = tx.send("pause"); // Safely ignore send errors
-                } else if command == "resume" {
-                    let _ = tx.send("resume"); // Safely ignore send errors
+                let command = input.trim().to_string();
+                match command.as_str() {
+                    "pause" | "resume" | "faster" | "slower" => {
+                        let _ = tx.send(command); // Send valid commands
+                    }
+                    _ => println!("Unknown command: {}", command),
                 }
             }
         }
@@ -121,18 +122,29 @@ fn setup_command_listener() -> mpsc::Receiver<&'static str> {
 /// Run the simulation loop, handling pause and resume commands.
 fn run_simulation(
     mut board: Vec<bool>,
-    rx: mpsc::Receiver<&'static str>,
+    rx: mpsc::Receiver<String>,
     running: Arc<AtomicBool>,
 ) -> Vec<bool> {
     let mut next_board = board.clone();
     let mut generation = 0;
     let mut paused = false;
+    let mut delay = 200; // Initial delay in milliseconds
 
     while running.load(Ordering::SeqCst) {
         if let Ok(command) = rx.try_recv() {
-            match command {
+            match command.as_str() {
                 "pause" => paused = true,
                 "resume" => paused = false,
+                "faster" => {
+                    if delay > 50 {
+                        delay -= 50;
+                        println!("Speed increased: Delay = {} ms", delay);
+                    }
+                }
+                "slower" => {
+                    delay += 50;
+                    println!("Speed decreased: Delay = {} ms", delay);
+                }
                 _ => (),
             }
         }
@@ -159,7 +171,7 @@ fn run_simulation(
 
         generation += 1;
 
-        thread::sleep(Duration::from_millis(100)); // Delay for readability
+        thread::sleep(Duration::from_millis(delay as u64)); // Delay for readability
     }
 
     board
