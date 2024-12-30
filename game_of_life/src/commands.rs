@@ -14,7 +14,7 @@ pub fn setup_command_listener() -> mpsc::Receiver<String> {
             if let Ok(_) = stdin.read_line(&mut input) {
                 let command = input.trim().to_string();
                 match command.as_str() {
-                    "pause" | "resume" | "faster" | "slower" | "toggle_wrap" => {
+                    "pause" | "resume" | "faster" | "slower" | "toggle_wrap" | "step" => {
                         let _ = tx.send(command); // Send valid commands
                     }
                     _ => println!("Unknown command: {}", command),

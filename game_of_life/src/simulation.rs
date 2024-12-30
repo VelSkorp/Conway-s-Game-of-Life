@@ -17,12 +17,21 @@ pub fn run_simulation(
     let mut generation = 0;
     let mut paused = false;
     let mut delay = 200; // Initial delay in milliseconds
+    let mut step_mode = false; // Step mode is disabled by default
 
     while running.load(Ordering::SeqCst) {
         if let Ok(command) = rx.try_recv() {
             match command.as_str() {
                 "pause" => paused = true,
-                "resume" => paused = false,
+                "resume" => {
+                    paused = false;
+                    step_mode = false; // Exiting step mode when resuming
+                },
+                "step" => {
+                    paused = true;
+                    step_mode = true;
+                    println!("Step mode enabled. Type 'resume' to exit.");
+                }
                 "faster" => {
                     if delay > 50 {
                         delay -= 50;
@@ -45,9 +54,9 @@ pub fn run_simulation(
             }
         }
 
-        if paused {
-            println!("Simulation paused. Type 'resume' to continue.");
-            thread::sleep(Duration::from_secs(120));
+        if paused && !step_mode {
+            println!("Simulation paused. Type 'resume' to continue or 'step' to advance one generation.");
+            thread::sleep(Duration::from_millis(500));
             continue;
         }
 
@@ -66,6 +75,11 @@ pub fn run_simulation(
         std::mem::swap(&mut board, &mut next_board);
 
         generation += 1;
+
+        if step_mode {
+            paused = true; // Automatically pause after one step
+            continue;
+        }
 
         thread::sleep(Duration::from_millis(delay as u64)); // Delay for readability
     }
