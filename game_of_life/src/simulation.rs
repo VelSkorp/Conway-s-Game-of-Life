@@ -1,5 +1,5 @@
 use crate::board::{idx, print_board, save_board};
-use crate::consts::{BIRTH, HEIGHT, SURVIVE, WIDTH};
+use crate::consts::{BIRTH, HEIGHT, SURVIVE, WIDTH, WRAPAROUND};
 use crate::utils::print_generation;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -32,6 +32,14 @@ pub fn run_simulation(
                 "slower" => {
                     delay += 50;
                     println!("Speed decreased: Delay = {} ms", delay);
+                }
+                "toggle_wrap" => {
+                    let current = WRAPAROUND.load(Ordering::SeqCst);
+                    WRAPAROUND.store(!current, Ordering::SeqCst);
+                    println!(
+                        "Wraparound is now {}",
+                        if !current { "enabled" } else { "disabled" }
+                    );
                 }
                 _ => (),
             }
@@ -86,6 +94,7 @@ fn next_generation(current: &Vec<bool>, next: &mut Vec<bool>) {
 /// Counts the number of live neighbors around a specific cell, wrapping around edges.
 fn live_neighbor_count(board: &[bool], row: usize, col: usize) -> usize {
     let mut count = 0;
+    let wrap = WRAPAROUND.load(Ordering::SeqCst);
 
     for dr in [-1, 0, 1] {
         for dc in [-1, 0, 1] {
@@ -93,8 +102,25 @@ fn live_neighbor_count(board: &[bool], row: usize, col: usize) -> usize {
                 continue;
             }
 
-            let neighbor_row = ((row as isize + dr).rem_euclid(HEIGHT as isize)) as usize;
-            let neighbor_col = ((col as isize + dc).rem_euclid(WIDTH as isize)) as usize;
+            let neighbor_row = if wrap {
+                ((row as isize + dr).rem_euclid(HEIGHT as isize)) as usize
+            } else {
+                let new_row = row as isize + dr;
+                if new_row < 0 || new_row >= HEIGHT as isize {
+                    continue;
+                }
+                new_row as usize
+            };
+
+            let neighbor_col = if wrap {
+                ((col as isize + dc).rem_euclid(WIDTH as isize)) as usize
+            } else {
+                let new_col = col as isize + dc;
+                if new_col < 0 || new_col >= WIDTH as isize {
+                    continue;
+                }
+                new_col as usize
+            };
 
             if board[idx(neighbor_row, neighbor_col)] {
                 count += 1;

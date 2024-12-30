@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 // Dimensions of the board
 pub const WIDTH: usize = 80;
 pub const HEIGHT: usize = 30;
@@ -11,3 +13,6 @@ pub const SURVIVE: [usize; 2] = [2, 3];
 // 1: Different ASCII characters ('@' for live, '.' for dead)
 // 2: Use ANSI colors with characters
 pub const VIEW_MODE: usize = 2;
+
+// Wraparound enabled by default
+pub const WRAPAROUND: AtomicBool = AtomicBool::new(true);
